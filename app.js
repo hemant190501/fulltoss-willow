@@ -18,19 +18,54 @@ async function play(m,serverList){
   const list=Array.isArray(serverList)?serverList:[serverList].filter(Boolean);
   if(!list.length){msg('No playable server URL','The match feed contains no HTTPS stream URL.');return}
   if(!window.shaka||!shaka.Player.isBrowserSupported()){msg('Unsupported browser','Use an updated Chrome, Edge or Firefox browser.');return}
+
+  // One visible video element; try feed servers sequentially behind the same player.
+  const video=document.createElement('video');
+  video.controls=true;video.playsInline=true;video.autoplay=true;video.preload='auto';
+  video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');
+  video.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';
+  player.replaceChildren(video);
+
   const failures=[];
   for(let i=0;i<list.length;i++){
     const s=list[i];
-    msg('Trying server '+(i+1)+' of '+list.length,s.label+' · Waiting for video…');
-    let instance=null, video=null, errorHandler=null, timer=null;
+    let instance=null,timer=null,errorHandler=null,onReady=null,onVideoError=null;
+    let readyResolve,readyReject;
+    const ready=new Promise((resolve,reject)=>{readyResolve=resolve;readyReject=reject});
+    const cleanup=()=>{
+      if(timer)clearTimeout(timer);
+      if(onReady){video.removeEventListener('loadeddata',onReady);video.removeEventListener('canplay',onReady)}
+      if(onVideoError)video.removeEventListener('error',onVideoError);
+      if(instance&&errorHandler)instance.removeEventListener('error',errorHandler);
+    };
     try{
-      video=document.createElement('video');
-      video.controls=true;video.playsInline=true;video.autoplay=true;video.preload='auto';
-      video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');
-      video.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';
-      player.replaceChildren(video);
+      video.poster='';
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      onReady=()=>readyResolve();
+      onVideoError=()=>{const e=video.error;readyReject(Error('Video decode/network error'+(e?' (code '+e.code+')':'')))};
+      video.addEventListener('loadeddata',onReady,{once:true});
+      video.addEventListener('canplay',onReady,{once:true});
+      video.addEventListener('error',onVideoError,{once:true});
+      timer=setTimeout(()=>readyReject(Error('No video data received within 18 seconds')),18000);
+
       instance=new shaka.Player();
       activePlayer=instance;
+      errorHandler=e=>{
+        const d=e&&e.detail;
+        const n=d&&Array.isArray(d.data)?d.data[0]:null;
+        let extra='';
+        if(n){
+          if(n.code)extra+=' · network error '+n.code;
+          if(Array.isArray(n.data)){
+            const status=n.data.find(x=>Number.isInteger(x)&&x>=100&&x<=599);
+            if(status)extra+=' · HTTP '+status;
+          }
+        }
+        readyReject(Error('Shaka Error '+(d&&d.code?d.code:'unknown')+(d&&d.message?' · '+d.message:'')+extra));
+      };
+      instance.addEventListener('error',errorHandler);
       instance.configure({
         streaming:{
           bufferingGoal:20,
@@ -39,31 +74,26 @@ async function play(m,serverList){
         },
         abr:{enabled:true}
       });
-      const firstFrame=new Promise((resolve,reject)=>{
-        const cleanup=()=>{video.removeEventListener('loadeddata',onReady);video.removeEventListener('canplay',onReady);video.removeEventListener('error',onVideoError);if(timer)clearTimeout(timer);if(instance&&errorHandler)instance.removeEventListener('error',errorHandler)};
-        const onReady=()=>{cleanup();resolve()};
-        const onVideoError=()=>{const e=video.error;cleanup();reject(Error('Video decode/network error'+(e?' (code '+e.code+')':'')))};
-        errorHandler=e=>{const d=e&&e.detail;cleanup();reject(Error(d&&d.message?d.message:'Shaka playback error'+(d&&d.code?' #'+d.code:'')))};
-        video.addEventListener('loadeddata',onReady,{once:true});
-        video.addEventListener('canplay',onReady,{once:true});
-        video.addEventListener('error',onVideoError,{once:true});
-        instance.addEventListener('error',errorHandler);
-        timer=setTimeout(()=>{cleanup();reject(Error('Stream connected but no video frame arrived within 18 seconds'))},18000);
-      });
       await instance.attach(video);
       await instance.load(s.url);
       if(activePlayer!==instance)throw Error('Playback cancelled');
-      await firstFrame;
-      video.play().catch(()=>{msg('Tap Play to start','The stream is ready, but the browser blocked automatic playback.')});
+      await ready;
+      cleanup();
+      video.play().catch(()=>{});
+      console.info('[FULLTOSS] Playing with server:',s.label);
       return;
     }catch(e){
+      cleanup();
       console.warn('[FULLTOSS] Server failed:',s.label,e);
       failures.push(s.label+': '+(e&&e.message?e.message:'Playback failed'));
       if(instance){try{await instance.destroy()}catch(_){}}
       if(activePlayer===instance)activePlayer=null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
     }
   }
-  msg('No video received from available servers',failures.join(' · ')||'The feed did not provide a playable stream. The stream may be expired, blocked by CORS, or not supported by this browser.');
+  msg('No video received from available servers',failures.join(' · ')||'No available server returned playable video. DRM-protected streams require the provider’s authorized license configuration.');
 }
 function open(m){selectedMatch=m;stop();$('#playerTitle').textContent=m.title;$('#playerMeta').textContent=m.competition+' · '+m.status.toUpperCase();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');const list=servers(m);if(m.status!=='live'){msg('Upcoming fixture','This match is not marked LIVE by the provider feed yet.');return}if(!list.length){msg('No playable server URL','The match feed has no HTTPS server URL in its CnpTV field.');return}play(m,list);}
 function close(){stop();modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('modal-open')}
