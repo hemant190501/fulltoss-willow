@@ -21,19 +21,40 @@ async function play(m,serverList){
   const failures=[];
   for(let i=0;i<list.length;i++){
     const s=list[i];
-    msg('Trying server '+(i+1)+' of '+list.length,s.label+' · Connecting…');
-    let instance=null;
+    msg('Trying server '+(i+1)+' of '+list.length,s.label+' · Waiting for video…');
+    let instance=null, video=null, errorHandler=null, timer=null;
     try{
-      const v=document.createElement('video');
-      v.controls=true;v.playsInline=true;v.autoplay=true;v.preload='auto';
-      v.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';
-      player.replaceChildren(v);
+      video=document.createElement('video');
+      video.controls=true;video.playsInline=true;video.autoplay=true;video.preload='auto';
+      video.setAttribute('playsinline','');video.setAttribute('webkit-playsinline','');
+      video.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';
+      player.replaceChildren(video);
       instance=new shaka.Player();
       activePlayer=instance;
-      await instance.attach(v);
+      instance.configure({
+        streaming:{
+          bufferingGoal:20,
+          rebufferingGoal:2,
+          retryParameters:{maxAttempts:3,baseDelay:500,backoffFactor:2}
+        },
+        abr:{enabled:true}
+      });
+      const firstFrame=new Promise((resolve,reject)=>{
+        const cleanup=()=>{video.removeEventListener('loadeddata',onReady);video.removeEventListener('canplay',onReady);video.removeEventListener('error',onVideoError);if(timer)clearTimeout(timer);if(instance&&errorHandler)instance.removeEventListener('error',errorHandler)};
+        const onReady=()=>{cleanup();resolve()};
+        const onVideoError=()=>{const e=video.error;cleanup();reject(Error('Video decode/network error'+(e?' (code '+e.code+')':'')))};
+        errorHandler=e=>{const d=e&&e.detail;cleanup();reject(Error(d&&d.message?d.message:'Shaka playback error'+(d&&d.code?' #'+d.code:'')))};
+        video.addEventListener('loadeddata',onReady,{once:true});
+        video.addEventListener('canplay',onReady,{once:true});
+        video.addEventListener('error',onVideoError,{once:true});
+        instance.addEventListener('error',errorHandler);
+        timer=setTimeout(()=>{cleanup();reject(Error('Stream connected but no video frame arrived within 18 seconds'))},18000);
+      });
+      await instance.attach(video);
       await instance.load(s.url);
       if(activePlayer!==instance)throw Error('Playback cancelled');
-      v.play().catch(()=>{});
+      await firstFrame;
+      video.play().catch(()=>{msg('Tap Play to start','The stream is ready, but the browser blocked automatic playback.')});
       return;
     }catch(e){
       console.warn('[FULLTOSS] Server failed:',s.label,e);
@@ -42,7 +63,7 @@ async function play(m,serverList){
       if(activePlayer===instance)activePlayer=null;
     }
   }
-  msg('All servers unavailable',failures.join(' · ')||'The provider did not return a playable stream. Check whether the URLs are active and accessible.');
+  msg('No video received from available servers',failures.join(' · ')||'The feed did not provide a playable stream. The stream may be expired, blocked by CORS, or not supported by this browser.');
 }
 function open(m){selectedMatch=m;stop();$('#playerTitle').textContent=m.title;$('#playerMeta').textContent=m.competition+' · '+m.status.toUpperCase();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');const list=servers(m);if(m.status!=='live'){msg('Upcoming fixture','This match is not marked LIVE by the provider feed yet.');return}if(!list.length){msg('No playable server URL','The match feed has no HTTPS server URL in its CnpTV field.');return}play(m,list);}
 function close(){stop();modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('modal-open')}
