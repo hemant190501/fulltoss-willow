@@ -13,8 +13,38 @@ function render(){const rows=matches.filter(m=>filter==='all'||m.status===filter
 async function load(){if(busy)return;busy=true;$('#feedState').textContent='UPDATING MATCH FEED';try{const results=await Promise.allSettled(FEEDS.map(async url=>{const r=await fetch(url+'?t='+Date.now(),{cache:'no-store'});if(!r.ok)throw Error(url+' HTTP '+r.status);return extract(await r.json())}));const all=[];results.forEach(x=>{if(x.status==='fulfilled')all.push(...x.value)});if(!all.length)throw Error('All match feeds unavailable');const seen=new Set();matches=all.filter(x=>x&&typeof x==='object').map(normalize).filter(m=>{const k=m.id.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});$('#updated').textContent='UPDATED '+new Date().toLocaleTimeString('en-IN')}catch(e){console.error('[FULLTOSS WILLOW feed]',e);$('#updated').textContent='LIVE FEED UNAVAILABLE — RETRYING';if(!matches.length)try{const r=await fetch('./data/matches.json');const d=await r.json();matches=(d.matches||[]).map(normalize)}catch(_){}}finally{busy=false;render()}}
 function stop(){if(activePlayer){try{activePlayer.destroy()}catch(e){}activePlayer=null}const v=player.querySelector('video');if(v){v.pause();v.removeAttribute('src');v.load()}}
 function msg(title,detail){player.innerHTML='<div class="player-message"><div class="player-icon">▶</div><b>'+esc(title)+'</b><span>'+esc(detail)+'</span></div>'}
-async function play(m,s){stop();const r=m.raw||{},url=s.url,drm=r.drm_key;if(drm){msg('Provider DRM authorization required','This server is marked as DRM-protected by the feed. FULLTOSS will not extract or reuse embedded content keys. Playback needs the provider’s official license-server configuration.');return}if(!window.shaka||!shaka.Player.isBrowserSupported()){msg('Unsupported browser','Use an updated Chrome, Edge or Firefox browser.');return}msg('Connecting to '+s.label,'Loading the selected provider stream…');try{const v=document.createElement('video');v.controls=true;v.playsInline=true;v.autoplay=true;v.preload='metadata';v.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';player.replaceChildren(v);activePlayer=new shaka.Player();await activePlayer.attach(v);await activePlayer.load(url);await v.play().catch(()=>{})}catch(e){console.error('[FULLTOSS playback]',e);msg('Stream unavailable',e.message||'The provider URL may be expired, blocked by CORS, or unavailable. Try another listed server.')}}
-function open(m){selectedMatch=m;stop();$('#playerTitle').textContent=m.title;$('#playerMeta').textContent=m.competition+' · '+m.status.toUpperCase();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');const list=servers(m);if(m.status!=='live'){msg('Upcoming fixture','This match is not marked LIVE by the provider feed yet.');return}if(!list.length){msg('No playable server URL','The match feed has no HTTPS server URL in its CnpTV field.');return}play(m,list[0]);}
+async function play(m,serverList){
+  stop();
+  const list=Array.isArray(serverList)?serverList:[serverList].filter(Boolean);
+  if(!list.length){msg('No playable server URL','The match feed contains no HTTPS stream URL.');return}
+  if(!window.shaka||!shaka.Player.isBrowserSupported()){msg('Unsupported browser','Use an updated Chrome, Edge or Firefox browser.');return}
+  const failures=[];
+  for(let i=0;i<list.length;i++){
+    const s=list[i];
+    msg('Trying server '+(i+1)+' of '+list.length,s.label+' · Connecting…');
+    let instance=null;
+    try{
+      const v=document.createElement('video');
+      v.controls=true;v.playsInline=true;v.autoplay=true;v.preload='auto';
+      v.style.cssText='width:100%;height:100%;background:#000;object-fit:contain';
+      player.replaceChildren(v);
+      instance=new shaka.Player();
+      activePlayer=instance;
+      await instance.attach(v);
+      await instance.load(s.url);
+      if(activePlayer!==instance)throw Error('Playback cancelled');
+      v.play().catch(()=>{});
+      return;
+    }catch(e){
+      console.warn('[FULLTOSS] Server failed:',s.label,e);
+      failures.push(s.label+': '+(e&&e.message?e.message:'Playback failed'));
+      if(instance){try{await instance.destroy()}catch(_){}}
+      if(activePlayer===instance)activePlayer=null;
+    }
+  }
+  msg('All servers unavailable',failures.join(' · ')||'The provider did not return a playable stream. Check whether the URLs are active and accessible.');
+}
+function open(m){selectedMatch=m;stop();$('#playerTitle').textContent=m.title;$('#playerMeta').textContent=m.competition+' · '+m.status.toUpperCase();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');const list=servers(m);if(m.status!=='live'){msg('Upcoming fixture','This match is not marked LIVE by the provider feed yet.');return}if(!list.length){msg('No playable server URL','The match feed has no HTTPS server URL in its CnpTV field.');return}play(m,list);}
 function close(){stop();modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('modal-open')}
 document.addEventListener('click',e=>{const f=e.target.closest('[data-filter]');if(f){filter=f.dataset.filter;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',x===f));render();return}const c=e.target.closest('[data-open]');if(c){const rows=matches.filter(x=>filter==='all'||x.status===filter),m=rows[+c.dataset.open];if(m)open(m)}});$('#close').onclick=close;modal.addEventListener('click',e=>{if(e.target===modal)close()});document.addEventListener('keydown',e=>{if(e.key==='Escape')close()});$('#refresh').onclick=load;$('#explore').onclick=()=>$('#matches').scrollIntoView({behavior:'smooth'});$('#year').textContent=new Date().getFullYear();$('#menu').onclick=()=>document.querySelector('nav').classList.toggle('show');load();setInterval(()=>{if(!document.hidden)load()},60000);
 })();
