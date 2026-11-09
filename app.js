@@ -54,16 +54,25 @@ async function play(m,serverList){
       activePlayer=instance;
       errorHandler=e=>{
         const d=e&&e.detail;
-        const n=d&&Array.isArray(d.data)?d.data[0]:null;
+        const nested=d&&Array.isArray(d.data)?d.data[0]:null;
+        const nestedData=nested&&Array.isArray(nested.data)?nested.data:[];
+        const nestedCause=nestedData[1];
+        const causeText=nestedCause&&typeof nestedCause==='object'
+          ?(nestedCause.message||nestedCause.name||'')
+          :typeof nestedCause==='string'?nestedCause:'';
+        const networkCode=nested&&nested.code;
+        const labels={6007:'LICENSE_REQUEST_FAILED',6008:'LICENSE_RESPONSE_REJECTED',6001:'REQUESTED_KEY_SYSTEM_CONFIG_UNAVAILABLE',1002:'HTTP_ERROR',1001:'BAD_HTTP_STATUS',1003:'TIMEOUT'};
         let extra='';
-        if(n){
-          if(n.code)extra+=' · network error '+n.code;
-          if(Array.isArray(n.data)){
-            const status=n.data.find(x=>Number.isInteger(x)&&x>=100&&x<=599);
-            if(status)extra+=' · HTTP '+status;
-          }
-        }
-        readyReject(Error('Shaka Error '+(d&&d.code?d.code:'unknown')+(d&&d.message?' · '+d.message:'')+extra));
+        if(networkCode)extra+=' · network error '+networkCode+(labels[networkCode]?' ('+labels[networkCode]+')':'');
+        if(causeText)extra+=' · '+causeText;
+        if(d&&d.code===6007)extra+=' · provider license request failed; authorized license-server settings are required';
+        console.error('[FULLTOSS WILLOW Shaka diagnostic]',{
+          code:d&&d.code,codeName:labels[d&&d.code]||'UNKNOWN',
+          category:d&&d.category,severity:d&&d.severity,
+          nestedCode:networkCode,nestedCodeName:labels[networkCode]||'',
+          cause:causeText||undefined
+        });
+        readyReject(Error('Shaka Error '+(d&&d.code?d.code:'unknown')+(labels[d&&d.code]?' ('+labels[d.code]+')':'')+extra));
       };
       instance.addEventListener('error',errorHandler);
       instance.configure({
