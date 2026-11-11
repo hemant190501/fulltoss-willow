@@ -26,13 +26,13 @@ async function play(m,serverList){
   const first=list[0].url;
   // CENC streams require the provider's authorized DRM license configuration.
   // Do not attempt to use feed-supplied key material or bypass the license system.
-  if(/\\.mpd(?:[?#]|$)/i.test(first)&&(/cenc/i.test(first)||m.raw?.drm_key)){
+  if(/\.mpd(?:[?#]|$)/i.test(first)&&(/cenc/i.test(first)||m.raw?.drm_key)){
     const names=list.map(s=>s.label).join(', ');
     msg('Provider DRM configuration required','This feed supplies an encrypted CENC/DASH stream. A compatible player alone cannot decrypt it. The provider must supply its authorized DRM license URL and configuration. Available mirror URLs: '+names+'.');
     console.info('[FULLTOSS] Encrypted DASH detected; waiting for authorized provider DRM configuration.');
     return;
   }
-  const isManifest=u=>/\\.(mpd|m3u8)(?:[?#]|$)/i.test(u);
+  const isManifest=u=>/\.(mpd|m3u8)(?:[?#]|$)/i.test(u);
   if(!isManifest(first)){
     const frame=document.createElement('iframe');
     frame.src=first;frame.title=m.title+' — '+list[0].label;
