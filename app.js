@@ -1,5 +1,5 @@
 (()=>{'use strict';
-const FEEDS=['https://sonujson-v5.pages.dev/Data/willow.json','https://raw.githubusercontent.com/srhady/willow-event/main/live_sports.json'];
+const FEEDS=['https://sonujson-v5.pages.dev/Data/willow.json'];
 const $=s=>document.querySelector(s),grid=$('#grid'),modal=$('#modal'),player=$('#player');
 let matches=[],filter='all',busy=false,activePlayer=null,selectedMatch=null;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
