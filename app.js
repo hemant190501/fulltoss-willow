@@ -23,24 +23,29 @@ async function play(m,serverList){
   await stop();
   const list=Array.isArray(serverList)?serverList:[serverList].filter(Boolean);
   if(!list.length){msg('No playable server URL','The match feed contains no HTTPS URL for this fixture.');return}
-  const first=list[0].url;
-  // CENC streams require the provider's authorized DRM license configuration.
-  // Do not attempt to use feed-supplied key material or bypass the license system.
-  if(/\.mpd(?:[?#]|$)/i.test(first)&&(/cenc/i.test(first)||m.raw?.drm_key)){
+  const isManifest=u=>/\\.(mpd|m3u8)(?:[?#]|$)/i.test(u);
+  const hasDash=list.some(s=>/\\.mpd(?:[?#]|$)/i.test(s.url));
+  const encrypted=hasDash&&!!m.raw?.drm_key;
+  // DRM playback is enabled only when the stream provider supplies its authorized
+  // license-server configuration. Feed key strings are never used as decryption keys.
+  const drmConfig=window.FULLTOSS_DRM_CONFIG;
+  const hasAuthorizedLicense=!!(drmConfig&&drmConfig.servers&&typeof drmConfig.servers==='object'&&Object.keys(drmConfig.servers).length);
+  if(encrypted&&!hasAuthorizedLicense){
     const names=list.map(s=>s.label).join(', ');
-    msg('Provider DRM configuration required','This feed supplies an encrypted CENC/DASH stream. A compatible player alone cannot decrypt it. The provider must supply its authorized DRM license URL and configuration. Available mirror URLs: '+names+'.');
-    console.info('[FULLTOSS] Encrypted DASH detected; waiting for authorized provider DRM configuration.');
+    player.innerHTML='<div class="server-picker"><div class="player-message"><div class="player-icon">🔒</div><b>Provider DRM license configuration missing</b><span>The match feed has encrypted CENC/DASH video. The listed CDN mirrors are video delivery URLs, not DRM license servers. Playback can start once the provider supplies its authorized license URL and any required request headers.</span></div><p>AVAILABLE CDN MIRRORS</p><div class="server-buttons"></div><div class="player-message"><span>Mirrors found: '+esc(names)+'. Switching mirrors cannot replace the required DRM license.</span></div></div>';
+    const buttons=player.querySelector('.server-buttons');
+    list.forEach((s,i)=>{const b=document.createElement('button');b.className='server-choice'+(i===0?' active':'');b.type='button';b.innerHTML=esc(s.label)+'<small>Encrypted DASH mirror</small>';b.title=s.url;b.onclick=()=>{buttons.querySelectorAll('button').forEach(x=>x.classList.remove('active'));b.classList.add('active');console.info('[FULLTOSS] Selected CDN mirror:',s.label,s.url)};buttons.appendChild(b)});
+    console.info('[FULLTOSS] DRM license config missing; CDN mirrors listed only.',list);
     return;
   }
-  const isManifest=u=>/\.(mpd|m3u8)(?:[?#]|$)/i.test(u);
-  if(!isManifest(first)){
+  if(!isManifest(list[0].url)){
     const frame=document.createElement('iframe');
-    frame.src=first;frame.title=m.title+' — '+list[0].label;
+    frame.src=list[0].url;frame.title=m.title+' — '+list[0].label;
     frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';frame.allowFullscreen=true;
     frame.referrerPolicy='no-referrer-when-downgrade';frame.loading='eager';
     frame.style.cssText='width:100%;height:100%;min-height:320px;border:0;background:#000;display:block';
     player.replaceChildren(frame);
-    console.info('[FULLTOSS] Opening provider player page:',list[0].label,first);
+    console.info('[FULLTOSS] Opening provider player page:',list[0].label,list[0].url);
     return;
   }
   if(!window.shaka||!window.shaka.Player){msg('Player library unavailable','Shaka Player did not load. Refresh the page and try again.');return}
@@ -53,6 +58,13 @@ async function play(m,serverList){
   const shakaPlayer=new window.shaka.Player();
   activePlayer=shakaPlayer;
   try{await shakaPlayer.attach(video)}catch(e){console.error('[FULLTOSS] Shaka attach failed',e);msg('Could not initialize player','The browser could not initialize the media player.');return}
+  if(encrypted&&hasAuthorizedLicense){
+    try{
+      const config={drm:{servers:drmConfig.servers}};
+      if(drmConfig.advanced)config.drm.advanced=drmConfig.advanced;
+      shakaPlayer.configure(config);
+    }catch(e){console.error('[FULLTOSS] Invalid authorized DRM configuration',e);await stop();msg('DRM configuration error','The provider DRM configuration is not valid for this player.');return}
+  }
   let lastError=null;
   for(let i=0;i<list.length;i++){
     const s=list[i];
@@ -65,9 +77,10 @@ async function play(m,serverList){
       return;
     }catch(e){lastError=e;console.warn('[FULLTOSS] Server failed:',s.label,e);try{await shakaPlayer.unload()}catch(_){}}
   }
-  console.error('[FULLTOSS] All compatible manifest servers failed',lastError);
+  console.error('[FULLTOSS] All manifest mirrors failed',lastError);
   await stop();
-  msg('Stream could not be played','All available manifest mirrors failed. This may be due to encryption, expired URLs, CORS, or provider-side access restrictions. Check the browser console for the exact playback error.');
+  const detail=encrypted?'The authorized license request or CDN request failed. Check provider-supplied license URL, required headers, CORS and browser console.':'All available manifest mirrors failed. Check whether the URLs are current and whether the provider allows browser playback (CORS/access).';
+  msg('Stream could not be played',detail);
 }
 async function open(m){selectedMatch=m;$('#playerTitle').textContent=m.title;$('#playerMeta').textContent=m.competition+' · '+m.status.toUpperCase();modal.classList.add('open');modal.setAttribute('aria-hidden','false');document.body.classList.add('modal-open');const list=servers(m);if(m.status!=='live'){await stop();msg('Upcoming fixture','This match is not marked LIVE by the provider feed yet.');return}if(!list.length){await stop();msg('No playable server URL','The match feed has no HTTPS stream URL for this fixture.');return}await play(m,list);}
 async function close(){await stop();modal.classList.remove('open');modal.setAttribute('aria-hidden','true');document.body.classList.remove('modal-open')}
