@@ -3,7 +3,7 @@
 
 /* FULLTOSS Telegram badge inside the player frame */
 .player-frame{position:relative}
-.player-telegram{position:absolute;z-index:5;top:12px;left:12px;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #ffffff35;border-radius:7px;background:rgba(8,13,22,.88);backdrop-filter:blur(8px);color:#fff;text-decoration:none;font:800 9px 'DM Sans',sans-serif;letter-spacing:.1em;box-shadow:0 5px 18px #0007;transition:background .2s,border-color .2s}
+.player-telegram{position:absolute;z-index:5;top:42px;right:12px;left:auto;display:flex;align-items:center;gap:7px;padding:8px 11px;border:1px solid #ffffff35;border-radius:7px;background:rgba(8,13,22,.88);backdrop-filter:blur(8px);color:#fff;text-decoration:none;font:800 9px 'DM Sans',sans-serif;letter-spacing:.1em;box-shadow:0 5px 18px #0007;transition:background .2s,border-color .2s}
 .player-telegram:hover{background:#168bd0;border-color:#62c4ff}
 .player-telegram svg{width:15px;height:15px;fill:#42b9ff}
-@media(max-width:650px){.player-telegram{top:8px;left:8px;padding:7px 9px;font-size:8px}.player-telegram svg{width:13px;height:13px}}
+@media(max-width:650px){.player-telegram{top:34px;right:8px;left:auto;padding:7px 9px;font-size:8px}.player-telegram svg{width:13px;height:13px}}
