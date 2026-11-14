@@ -43,7 +43,7 @@ async function play(m,serverList){
     frame.src=list[0].url;frame.title=m.title+' — '+list[0].label;
     frame.allow='autoplay; encrypted-media; fullscreen; picture-in-picture';frame.allowFullscreen=true;
     frame.referrerPolicy='no-referrer-when-downgrade';frame.loading='eager';
-    frame.style.cssText='width:100%;height:100%;min-height:320px;border:0;background:#000;display:block';
+    frame.style.cssText='width:100%;height:100%;min-height:0;border:0;background:#000;display:block';
     player.replaceChildren(frame);
     console.info('[FULLTOSS] Opening provider player page:',list[0].label,list[0].url);
     return;
