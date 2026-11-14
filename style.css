@@ -7,3 +7,70 @@
 .player-telegram:hover{background:#168bd0;border-color:#62c4ff}
 .player-telegram svg{width:15px;height:15px;fill:#42b9ff}
 @media(max-width:650px){.player-telegram{top:34px;right:8px;left:auto;padding:7px 9px;font-size:8px}.player-telegram svg{width:13px;height:13px}}
+
+
+/* Mobile player: immersive full-screen layout */
+@media(max-width:650px){
+  .modal{
+    padding:0;
+    align-items:stretch;
+    justify-content:stretch;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+  }
+  .modal-panel{
+    width:100%;
+    min-height:100dvh;
+    max-height:100dvh;
+    padding:max(18px,env(safe-area-inset-top)) 14px max(16px,env(safe-area-inset-bottom));
+    border:0;
+    border-radius:0;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:0;
+    overflow-y:auto;
+  }
+  .modal-head{
+    align-items:flex-start;
+    gap:12px;
+    padding:4px 0 14px;
+  }
+  .modal-head>div{min-width:0;flex:1}
+  .modal-head h3{
+    font-size:clamp(17px,4.8vw,21px);
+    line-height:1.24;
+    letter-spacing:-.025em;
+    overflow-wrap:anywhere;
+    margin:7px 0 10px;
+  }
+  .modal-head .eyebrow{font-size:9px;letter-spacing:.18em}
+  .modal-head small{font-size:9px;line-height:1.4}
+  .modal-head>button{
+    flex:0 0 38px;
+    width:38px;
+    height:38px;
+    margin-top:2px;
+  }
+  .player-frame{
+    width:100%;
+    aspect-ratio:16/9;
+    min-height:0;
+    border-radius:11px;
+    flex:0 0 auto;
+  }
+  .player-frame iframe{display:block;width:100%;height:100%}
+  .player-foot{
+    padding:12px 1px 0;
+    gap:8px 14px;
+    font-size:8px;
+    line-height:1.5;
+  }
+  .player-foot span:last-child{max-width:65%;text-align:right}
+  .player-telegram{top:8px;right:8px}
+}
+@media(max-width:380px){
+  .modal-panel{padding-left:11px;padding-right:11px}
+  .modal-head h3{font-size:17px}
+  .player-foot{font-size:7px}
+}
