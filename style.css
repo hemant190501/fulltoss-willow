@@ -74,3 +74,22 @@
   .modal-head h3{font-size:17px}
   .player-foot{font-size:7px}
 }
+
+
+/* Mobile modal sizing: remove the desktop floating-card layout */
+@media(max-width:650px){
+  .modal{position:fixed;inset:0;padding:0;align-items:stretch;justify-content:stretch;overflow:hidden}
+  .modal-panel{
+    width:100%;height:100dvh;min-height:100dvh;max-height:100dvh;
+    margin:0;padding:calc(env(safe-area-inset-top) + 14px) 12px calc(env(safe-area-inset-bottom) + 12px);
+    border:0;border-radius:0;display:flex;flex-direction:column;justify-content:flex-start;
+    overflow-y:auto;overscroll-behavior:contain;gap:0;
+  }
+  .modal-head{flex:0 0 auto;min-height:0;padding:3px 0 12px}
+  .modal-head h3{font-size:clamp(17px,4.5vw,21px);line-height:1.22;margin:6px 0 8px}
+  .modal-head>button{flex:0 0 38px}
+  .player-frame{width:100%;height:auto;min-height:0;aspect-ratio:16/9;flex:0 0 auto;overflow:hidden}
+  .player-frame iframe{width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;display:block}
+  .player-foot{flex:0 0 auto;padding:10px 1px 0;display:flex;justify-content:space-between;gap:8px;font-size:7px;line-height:1.4}
+  .player-foot span:last-child{max-width:62%;text-align:right}
+}
